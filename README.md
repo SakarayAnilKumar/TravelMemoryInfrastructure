@@ -57,14 +57,18 @@ terraform validate
 terraform plan
 
 # 4. Provision the cloud infrastructure automatically without manual confirmation prompts
-terraform apply --auto-approve
+terraform apply
 
 # 5. View output variables (such as the web server public IP address)
 terraform output
 
 # 6. Tear down all infrastructure resources when cleaning up the environment
-terraform destroy --auto-approve
+terraform destroy
 ```
+* Terraform apply outcome
+<img width="1607" height="917" alt="image" src="https://github.com/user-attachments/assets/ca5a4af0-fd36-47d3-85cc-cbb6e062223e" />
+
+* Terraform destroy outcome
 
 ---
 
@@ -89,7 +93,6 @@ Once Terraform provisions the bare-metal EC2 instances, Ansible takes over confi
 ``` bash
 # 1. Test basic network connectivity and SSH reachability for all inventory hosts
 ansible all -i inventory.ini -m ping
-
 # 2. Test connectivity specifically through the proxy jump host to the private database server
 ansible dbservers -i inventory.ini -m ping
 
@@ -102,6 +105,12 @@ ansible-playbook -i inventory.ini playbook.yaml --check
 # 5. Execute the master configuration and deployment playbook
 ansible-playbook -i inventory.ini playbook.yaml
 ```
+* Test the web and db servers connectivity
+<img width="1831" height="537" alt="image" src="https://github.com/user-attachments/assets/5b36d673-0d94-4aa2-bb34-f6be6c60587e" />
+
+* Run playbook to configure the web and db servers
+<img width="1891" height="905" alt="image" src="https://github.com/user-attachments/assets/df7ba7f5-419b-4eaf-b7b4-0f2f38c6a6eb" />
+
 ---
 
 ## 6. Application Integration, Runtime & Reverse Proxy Routing
@@ -121,7 +130,8 @@ The application execution relies on clean separation of duties and local network
 
 ---
 
-## 7. Security Hardening & Operational Best Practices
+## 7. Security
+Hardening & Operational Best Practices
 * **Network Isolation**: MongoDB instances reside entirely in private subnets, completely hidden from public enumeration or direct attack vectors.
 * **Privilege Separation & Permissions**: Application files and web roots enforce least-privilege ownership assigned explicitly to the `nginx` system user to prevent `13: Permission denied` errors.
 * **Credential Protection**: Sensitive connection strings and secrets are decoupled from source code, injected purely through runtime environment variables and protected SSH keys.
@@ -132,3 +142,7 @@ The application execution relies on clean separation of duties and local network
 * **Service Health Checks**: Verified via `sudo systemctl status nginx` and `pm2 status` to confirm active daemon states across target servers.
 * **End-to-End Functional Test**: Validated browser accessibility using the web server public IP address, confirming seamless data fetching from the Express/MongoDB backend tier.
 * **Repository Deliverables**: All Terraform configuration scripts, Ansible playbooks, inventory files, and this documentation have been packaged and pushed to GitHub as required by assignment guidelines.
+* List of travel memories
+<img width="1900" height="712" alt="image" src="https://github.com/user-attachments/assets/a96b664d-2569-4272-b60d-fd88be95c47c" />
+* View the travel memory
+<img width="1636" height="862" alt="image" src="https://github.com/user-attachments/assets/51d8dd4f-a2fc-4d25-a2f2-c8cd641f6a39" />
