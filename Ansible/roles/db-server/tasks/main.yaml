@@ -1,0 +1,26 @@
+---
+- name: Add MongoDB repository for Amazon Linux
+  ansible.builtin.yum_repository:
+    name: mongodb-org-7.0
+    description: MongoDB Repository
+    baseurl: https://repo.mongodb.org/yum/amazon/2023/mongodb-org/7.0/x86_64/
+    gpgcheck: true
+    enabled: true
+    gpgkey: https://www.mongodb.org/static/pgp/server-7.0.asc
+
+- name: Install MongoDB
+  ansible.builtin.dnf:
+    name: mongodb-org
+    state: present
+
+- name: Configure MongoDB to listen on all interfaces
+  ansible.builtin.lineinfile:
+    path: /etc/mongod.conf
+    regexp: '^  bindIp:'
+    line: '  bindIp: 0.0.0.0'
+
+- name: Start and enable mongod service
+  ansible.builtin.systemd:
+    name: mongod
+    state: started
+    enabled: true
