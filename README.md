@@ -74,7 +74,7 @@ terraform destroy
 ---
 
 ## 5. Part 2: Configuration Management & Automation Approach (Ansible Breakdown)
-Once Terraform provisions the bare-metal EC2 instances, Ansible takes over configuration management, software installation, and code deployment. 
+Once Terraform provisions the  EC2 instances IPs, Ansible takes over configuration management, software installation, and code deployment. Update the IPs in inventory.ini and roles/web-server/defaults/main.yaml
 
 ### Core Ansible Files & Structure Explained
 1. **`inventory/hosts.ini` (Dynamic/Static Inventory)**
