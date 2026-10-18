@@ -69,6 +69,7 @@ terraform destroy
 <img width="1607" height="917" alt="image" src="https://github.com/user-attachments/assets/ca5a4af0-fd36-47d3-85cc-cbb6e062223e" />
 
 * Terraform destroy outcome
+![Uploading image.png…]()
 
 ---
 
