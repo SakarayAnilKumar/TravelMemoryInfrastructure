@@ -1,3 +1,4 @@
+
 ---
 # ====================================================
 # Web Server Role Tasks for MERN Stack Deployment
@@ -38,14 +39,14 @@
 # ----------------------------------------------------
 # 2. Repository Management & Permissions
 # ----------------------------------------------------
-- name: Clone or update the TravelMemory repository
+- name: Clone or update the TravelMemory application repository
   ansible.builtin.git:
-    repo: 'https://github.com/SakarayAnilKumar/TravelMemoryInfrastructure.git'
+    repo: 'https://github.com/SakarayAnilKumar/TravelMemory.git' # Fixed to source code repo
     dest: "{{ app_dir }}"
     version: main
     force: yes
 
-- name: Ensure correct file ownership for ec2-user
+- name: Ensure correct file ownership for ec2-user on app directory
   ansible.builtin.file:
     path: "{{ app_dir }}"
     owner: ec2-user
@@ -59,6 +60,7 @@
   ansible.builtin.npm:
     path: "{{ backend_dir }}"
     production: no
+  become_user: ec2-user
 
 - name: Ensure dotenv is configured at the top of backend index.js
   ansible.builtin.lineinfile:
@@ -67,13 +69,27 @@
     insertbefore: BOF
     line: "require('dotenv').config();"
 
-- name: Start backend application on port 3001 using PM2 with updated environment
+- name: Create backend .env file explicitly
+  ansible.builtin.copy:
+    dest: "{{ backend_dir }}/.env"
+    content: |
+      PORT=3001
+      MONGO_URI=mongodb://{{ private_db_ip }}:27017/travelmemory
+    owner: ec2-user
+    group: ec2-user
+    mode: '0644'
+
+- name: Start backend application on port 3001 using PM2 with explicit environment
   ansible.builtin.shell: |
     cd {{ backend_dir }}
     pm2 delete travelmemory-backend || true
     pm2 start index.js --name travelmemory-backend --update-env
   args:
     executable: /bin/bash
+  become_user: ec2-user
+  environment:
+    PORT: "3001"
+    MONGO_URI: "mongodb://{{ private_db_ip }}:27017/travelmemory"
 
 # ----------------------------------------------------
 # 4. Frontend Build & Web Root Deployment
@@ -81,6 +97,7 @@
 - name: Install frontend dependencies
   ansible.builtin.npm:
     path: "{{ frontend_dir }}"
+  become_user: ec2-user
 
 - name: Build React frontend production bundle
   ansible.builtin.shell: |
@@ -88,13 +105,14 @@
     npm run build
   args:
     executable: /bin/bash
+  become_user: ec2-user
 
 - name: Ensure Nginx web root directory exists with proper permissions
   ansible.builtin.file:
     path: "{{ web_root }}"
     state: directory
-    owner: ec2-user
-    group: ec2-user
+    owner: nginx
+    group: nginx
     mode: '0755'
 
 - name: Copy built frontend files to Nginx web root
@@ -102,6 +120,13 @@
     cp -r {{ frontend_dir }}/build/* {{ web_root }}/
   args:
     executable: /bin/bash
+
+- name: Ensure Nginx user owns the web root files to avoid 403/13 permission errors
+  ansible.builtin.file:
+    path: "{{ web_root }}"
+    owner: nginx
+    group: nginx
+    recurse: yes
 
 # ----------------------------------------------------
 # 5. Nginx Configuration & Service Management
@@ -119,8 +144,8 @@
               try_files $uri $uri/ /index.html;
           }
 
-          location /api {
-              proxy_pass http://localhost:3001;
+          location /api/ {
+              proxy_pass http://localhost:3001/;
               proxy_http_version 1.1;
               proxy_set_header Upgrade $http_upgrade;
               proxy_set_header Connection 'upgrade';
@@ -142,3 +167,4 @@
   ansible.builtin.shell: pm2 save
   args:
     executable: /bin/bash
+  become_user: ec2-user

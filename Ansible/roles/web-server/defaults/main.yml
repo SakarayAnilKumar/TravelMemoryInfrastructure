@@ -1,0 +1,7 @@
+---
+app_dir: "/home/ec2-user/TravelMemory"
+frontend_dir: "/home/ec2-user/TravelMemory/frontend"
+backend_dir: "/home/ec2-user/TravelMemory/backend"
+web_root: "/var/www/travelmemory"
+private_db_ip: "10.0.2.252"  # Safe default fallback IP
+backend_port: "3001"
