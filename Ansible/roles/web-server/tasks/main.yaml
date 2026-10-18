@@ -1,4 +1,3 @@
-
 ---
 # ====================================================
 # Web Server Role Tasks for MERN Stack Deployment
@@ -31,6 +30,27 @@
     update_cache: yes
   when: ansible_os_family == "Debian"
 
+# --- ADDED: Node.js setup & installation so npm is available ---
+- name: Setup Node.js repository on RedHat/Amazon Linux
+  ansible.builtin.shell: |
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+  args:
+    executable: /bin/bash
+  when: ansible_os_family == "RedHat"
+
+- name: Setup Node.js repository on Debian/Ubuntu
+  ansible.builtin.shell: |
+    curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+  args:
+    executable: /bin/bash
+  when: ansible_os_family == "Debian"
+
+- name: Install Node.js and npm package
+  ansible.builtin.package:
+    name: nodejs
+    state: present
+# -------------------------------------------------------------
+
 - name: Ensure PM2 is installed globally via npm
   ansible.builtin.npm:
     name: pm2
@@ -41,7 +61,7 @@
 # ----------------------------------------------------
 - name: Clone or update the TravelMemory application repository
   ansible.builtin.git:
-    repo: 'https://github.com/SakarayAnilKumar/TravelMemory.git' # Fixed to source code repo
+    repo: 'https://github.com/SakarayAnilKumar/TravelMemory.git'
     dest: "{{ app_dir }}"
     version: main
     force: yes
