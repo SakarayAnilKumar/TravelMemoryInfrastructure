@@ -1,113 +1,126 @@
 ---
-- name: Install Git, Nginx, and development tools via DNF
-  ansible.builtin.dnf:
+# ====================================================
+# Web Server Role Tasks for MERN Stack Deployment
+# ====================================================
+
+- name: Set deployment directory paths
+  ansible.builtin.set_fact:
+    app_dir: "/home/ec2-user/TravelMemory"
+    frontend_dir: "/home/ec2-user/TravelMemory/frontend"
+    backend_dir: "/home/ec2-user/TravelMemory/backend"
+    web_root: "/var/www/travelmemory"
+
+# ----------------------------------------------------
+# 1. System Dependencies & Prerequisites
+# ----------------------------------------------------
+- name: Install Git and Nginx on RedHat/Amazon Linux
+  ansible.builtin.yum:
     name:
       - git
       - nginx
-      - "@development"
     state: present
+  when: ansible_os_family == "RedHat"
 
-- name: Download Node.js 20 setup script
-  ansible.builtin.get_url:
-    url: https://rpm.nodesource.com/setup_20.x
-    dest: /tmp/nodesource_setup.sh
-    mode: '0755'
-
-- name: Run Node.js 20 setup script
-  ansible.builtin.command: bash /tmp/nodesource_setup.sh
-  args:
-    creates: /etc/yum.repos.d/nodesource-el9.repo
-
-- name: Install Node.js
-  ansible.builtin.dnf:
-    name: nodejs
+- name: Install Git and Nginx on Debian/Ubuntu
+  ansible.builtin.apt:
+    name:
+      - git
+      - nginx
     state: present
+    update_cache: yes
+  when: ansible_os_family == "Debian"
 
-- name: Install PM2 globally for backend process management
-  community.general.npm:
+- name: Ensure PM2 is installed globally via npm
+  ansible.builtin.npm:
     name: pm2
-    global: true
+    global: yes
 
-- name: Clone TravelMemory repository
+# ----------------------------------------------------
+# 2. Repository Management & Permissions
+# ----------------------------------------------------
+- name: Clone or update the TravelMemory repository
   ansible.builtin.git:
-    repo: 'https://github.com/SakarayAnilKumar/TravelMemory.git'
-    dest: /home/ec2-user/TravelMemory
+    repo: 'https://github.com/SakarayAnilKumar/TravelMemoryInfrastructure.git'
+    dest: "{{ app_dir }}"
     version: main
     force: yes
 
-- name: Install npm dependencies for backend
-  community.general.npm:
-    path: /home/ec2-user/TravelMemory/backend
-
-- name: Install npm dependencies for frontend
-  community.general.npm:
-    path: /home/ec2-user/TravelMemory/frontend
-
-- name: Create production environment file for backend
-  ansible.builtin.copy:
-    dest: /home/ec2-user/TravelMemory/backend/.env
-    mode: '0644'
-    content: |
-      PORT=3001
-      MONGO_URI=mongodb://10.0.2.171:27017/travelmemory
-
-- name: Create production environment file for frontend
-  ansible.builtin.copy:
-    dest: /home/ec2-user/TravelMemory/frontend/.env
-    mode: '0644'
-    content: |
-      REACT_APP_BACKEND_URL=http://localhost:3001 # Or your public IP/blank depending on your React code
-
-- name: Build frontend for production
-  ansible.builtin.command:
-    cmd: npm run build
-  args:
-    chdir: /home/ec2-user/TravelMemory/frontend
-    creates: /home/ec2-user/TravelMemory/frontend/build
-
-- name: Start backend application with PM2
-  ansible.builtin.command:
-    cmd: pm2 start index.js --name "travelmemory-backend"
-  args:
-    chdir: /home/ec2-user/TravelMemory/backend
-    creates: /root/.pm2/pids/travelmemory-backend-0.pid
-
-- name: Enable and start Nginx web server
-  ansible.builtin.systemd:
-    name: nginx
-    state: started
-    enabled: true
-
-- name: Create web root directory for frontend
+- name: Ensure correct file ownership for ec2-user
   ansible.builtin.file:
-    path: /var/www/travelmemory
+    path: "{{ app_dir }}"
+    owner: ec2-user
+    group: ec2-user
+    recurse: yes
+
+# ----------------------------------------------------
+# 3. Backend Setup & PM2 Execution (Port 3001)
+# ----------------------------------------------------
+- name: Install backend dependencies
+  ansible.builtin.npm:
+    path: "{{ backend_dir }}"
+    production: no
+
+- name: Ensure dotenv is configured at the top of backend index.js
+  ansible.builtin.lineinfile:
+    path: "{{ backend_dir }}/index.js"
+    regexp: "^require\\(\\s*['\"]dotenv['\"]\\s*\\)\\s*\\.\\s*config\\(\\s*\\)\\s*;?"
+    insertbefore: BOF
+    line: "require('dotenv').config();"
+
+- name: Start backend application on port 3001 using PM2 with updated environment
+  ansible.builtin.shell: |
+    cd {{ backend_dir }}
+    pm2 delete travelmemory-backend || true
+    pm2 start index.js --name travelmemory-backend --update-env
+  args:
+    executable: /bin/bash
+
+# ----------------------------------------------------
+# 4. Frontend Build & Web Root Deployment
+# ----------------------------------------------------
+- name: Install frontend dependencies
+  ansible.builtin.npm:
+    path: "{{ frontend_dir }}"
+
+- name: Build React frontend production bundle
+  ansible.builtin.shell: |
+    cd {{ frontend_dir }}
+    npm run build
+  args:
+    executable: /bin/bash
+
+- name: Ensure Nginx web root directory exists with proper permissions
+  ansible.builtin.file:
+    path: "{{ web_root }}"
     state: directory
-    owner: nginx
-    group: nginx
+    owner: ec2-user
+    group: ec2-user
     mode: '0755'
 
-- name: Copy frontend build files to standard web root
+- name: Copy built frontend files to Nginx web root
   ansible.builtin.shell: |
-    cp -r /home/ec2-user/TravelMemory/frontend/build/* /var/www/travelmemory/
-    chown -R nginx:nginx /var/www/travelmemory
+    cp -r {{ frontend_dir }}/build/* {{ web_root }}/
+  args:
+    executable: /bin/bash
 
-- name: Deploy custom Nginx configuration for TravelMemory
+# ----------------------------------------------------
+# 5. Nginx Configuration & Service Management
+# ----------------------------------------------------
+- name: Configure Nginx virtual host for TravelMemory routing
   ansible.builtin.copy:
     dest: /etc/nginx/conf.d/travelmemory.conf
-    mode: '0644'
     content: |
       server {
           listen 80;
           server_name _;
 
           location / {
-              root /var/www/travelmemory;
-              index index.html index.htm;
+              root {{ web_root }};
               try_files $uri $uri/ /index.html;
           }
 
           location /api {
-              proxy_pass http://localhost:5000;
+              proxy_pass http://localhost:3001;
               proxy_http_version 1.1;
               proxy_set_header Upgrade $http_upgrade;
               proxy_set_header Connection 'upgrade';
@@ -116,13 +129,16 @@
           }
       }
 
-- name: Remove default Nginx conflicting config
-  ansible.builtin.file:
-    path: /etc/nginx/conf.d/default.conf
-    state: absent
+- name: Test Nginx configuration syntax
+  ansible.builtin.command: nginx -t
 
-- name: Restart Nginx to load TravelMemory site
-  ansible.builtin.systemd:
+- name: Ensure Nginx service is running and enabled on boot
+  ansible.builtin.service:
     name: nginx
     state: restarted
-    enabled: true
+    enabled: yes
+
+- name: Save PM2 process list to persist across reboots
+  ansible.builtin.shell: pm2 save
+  args:
+    executable: /bin/bash
